@@ -5,9 +5,6 @@ import time
 from ReactNode import ReactNode
 from ChemNode import ChemNode, check_buyable
 
-MAX_DEPTH = 5
-
-
 def mcts(root:ChemNode, simulations:int):
     errors = 0
     for _ in range(simulations):
