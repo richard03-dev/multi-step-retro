@@ -1,24 +1,26 @@
-import math
-import random
 import sqlite3
 import pandas as pd
 from ReactNode import ReactNode
 from utils import *
-from typing import List, Tuple
+from typing import List
 from rdchiral.initialization import rdchiralReaction, rdchiralReactants
 from rdchiral.main import rdchiralRun
+
 
 EXPLORATION_PARAM = 1.414
 MAX_DEPTH = 6
 
 class ChemNode:
 
-    cursor:sqlite3.Cursor = None
-    template_set:pd.DataFrame = None
+    buyables:sqlite3.Cursor = None # Cursor for buyable lookup
+    abundants:sqlite3.Cursor = None # Here to rule out simple chemicals (i.e. water, oxygen, ammonium)
+    retrobiocat:pd.DataFrame = None # Retrobiocat templates
+    analyzer:Retrosim = None # RdEnzyme analyzer
 
-    def __init__(self, smile:str, depth:int, parent_reaction:ReactNode, cursor:sqlite3.Cursor = None, templates:pd.DataFrame = None):
+    def __init__(self, smiles:str, depth:int, parent_reaction:ReactNode, generate_reactions:bool = True, buyable:sqlite3.Cursor = None, 
+                 templates:pd.DataFrame = None, retrosim:Retrosim = None, abundant:sqlite3.Cursor = None):
         # Chemical data
-        self.smile = smile
+        self.smiles = smiles
 
         self.parent_reaction = parent_reaction
         self.depth = depth
@@ -30,42 +32,60 @@ class ChemNode:
         self.score:float = 0.0
 
         # Needed for buyable lookup and reaction generation
-        if cursor is not None:
-            ChemNode.cursor = cursor
+        if buyable is not None:
+            ChemNode.buyables = buyable
+        if abundant is not None:
+            ChemNode.abundants = abundant
         if templates is not None:
-            ChemNode.template_set = templates 
+            ChemNode.retrobiocat = templates
+        if retrosim is not None:
+            ChemNode.analyzer = retrosim
         
-        self.solution:bool = check_buyable(smile, ChemNode.cursor)
+        self.solution:bool = check_buyable(smiles, ChemNode.buyables)
 
-        if not self.solution: # If buyable, no need to generate reactions
-            self.generate_reactions()
-    
-    
-    def generate_reactions(self):
+        if (not self.solution) and generate_reactions: # If buyable, no need to generate reactions
+            self.generate_reactions_retrobiocat()
+
+    def copy(self) -> 'ChemNode':
         """
-        Populate the possible reactions for this node
+        Copy this node
+        """
+        new_node = ChemNode(self.smiles, self.depth, self.parent_reaction)
+        new_node.reactions = []
+        new_node.possible_reactions = []
+        new_node.visits = self.visits
+        new_node.score = self.score
+        new_node.solution = self.solution
+        return new_node
+    
+    def generate_reactions_retrobiocat(self):
+        """
+        Populate the possible reactions for this node using RetroBioCat dataset
         """
         if self.possible_reactions:
             print("Reactions already generated")
             return
 
-        prod = rdchiralReactants(self.smile)
-        for idx, name, rxn_smarts, rxn_type in self.template_set.itertuples():
+        prod = rdchiralReactants(self.smiles)
+        for idx, name, rxn_smarts, rxn_type in self.retrobiocat.itertuples():
             rxn = rdchiralReaction(rxn_smarts)
             outcomes = rdchiralRun(rxn, prod, combine_enantiomers=False)
             for reaction in outcomes:
                 reagents = [reagent for reagent in reaction.split('.')]
                 self.possible_reactions.append(Reaction(name, rxn_smarts, rxn_type, reagents))
-    
-    
-    def get_score(self) -> float:
+
+
+    def generate_reactions_rdenzyme(self):
+        results = ChemNode.analyzer.single_step_retro(self.smiles, max_precursors=50, debug=False)
+        for reaction in results:
+            # Add abundance check here
+            self.possible_reactions.append(Reaction(reaction[0], "", "", reaction[1]))
+        
+    def is_buyable(self) -> bool:
         """
-        Get the score of this node
+        Check if this node is buyable
         """
-        if self.visits == 0:
-            return 0
-        return self.score / self.visits
-     
+        return self.solution     
 
     def is_terminal(self):
         """
@@ -80,6 +100,13 @@ class ChemNode:
         """
         return len(self.possible_reactions) == 0 and len(self.reactions) > 0
 
+    def get_score(self) -> float:
+        """
+        Get the score of this node
+        """
+        if self.visits == 0:
+            return 0
+        return self.score / self.visits
 
     def get_MCTS_best_reaction(self) -> 'ReactNode':
         """
@@ -138,7 +165,7 @@ def simulate(self):
     while True:
         if depth >= MAX_DEPTH:
             return -0.5 # Too far
-        reaction = random_reaction(molecule, ChemNode.template_set, ChemNode.cursor)
+        reaction = random_reaction(molecule, ChemNode.retrobiocat, ChemNode.buyable)
         if reaction is None:
             return 1 # solution
         elif reaction == []:

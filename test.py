@@ -2,26 +2,25 @@ import sqlite3
 import pandas as pd
 import numpy as np
 import time
+from utils import *
 from ReactNode import ReactNode
 from ChemNode import ChemNode
 from MCTS import MCTS
 from PNS import PNS
-import sys
 
 def main():
-    conn = sqlite3.connect('data/buyable.db')
-    cursor = conn.cursor()
+    conn = sqlite3.connect('data/building_blocks.db')
+    buyable = conn.cursor()
 
-    template_set = pd.read_pickle("data/retrobiocat_database.pkl")
+    retrobiocat = pd.read_pickle("data/retrobiocat_database.pkl")
 
-    smile = "C#C[C@]1([C@H](C[C@@H](O1)N2C=NC3=C(N=C(N=C32)F)N)O)CO"
+    smile = "C[C@@H](N)[C@H](O)c1ccccc1"
 
+    analyzer = Retrosim()
 
+    root = ChemNode(smile, 0, None, True, buyable, retrobiocat, analyzer, None)
 
-    root = ChemNode(smile, 0, None, cursor, template_set)
-    jeff = dict()
-
-    pns = PNS(root, 1)
+    pns = PNS(root, 3)
     start = time.time()
     pns.proof_number_search(root)
     end = time.time()
@@ -29,21 +28,6 @@ def main():
     print(f'Root score: {root.solution}')
     print(f'Time taken: {end-start}')
     
-    second = ChemNode("C#C[C@]1(CO)O[C@@H](OP(=O)([O-])O)C[C@@H]1O", 0, None, cursor, template_set)
-    pns.proof_number_search(second)
-
-
-    third = ChemNode("C#C[C@]1(COP(=O)([O-])O)O[C@@H](O)C[C@@H]1O", 0, None, cursor, template_set)
-    pns.proof_number_search(third)
-
-
-    fourth = ChemNode("C(C(C=O)(O)(C#C))OP(=O)([O-])O", 0, None, cursor, template_set)
-    pns2 = PNS(fourth, 2)
-    pns2.proof_number_search(fourth)
-    print(f'solution: {fourth.solution}')
-    for react in fourth.reactions:
-        for reagent in react.reagents:
-            print(f'{reagent.smile}: {reagent.solution}, {reagent.parent_reaction.reaction_name}')
 
 
 

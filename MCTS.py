@@ -23,19 +23,27 @@ class MCTS:
         self.max_processes = max_processes
         self.max_depth = max_depth
         self.exploration_param = exploration_param
-        self.cursor:sqlite3.Cursor = ChemNode.cursor
+        self.buyables:sqlite3.Cursor = ChemNode.buyables
         self.template_set:pd.DataFrame = ChemNode.template_set
 
-    def select(self, node:ChemNode):
-        """
-        Select all required nodes for a reaction
-        """
-        selected = []
-        selectStack:Deque[ChemNode] = deque()
-        selectStack.append(node)
+    def select(self, root:ChemNode) -> 'ReactNode':
+        temp = root
+        while not temp.is_terminal() and temp.is_fully_expanded():
+            temp = temp.get_MCTS_best_reaction()
+        if not temp.is_fully_expanded():
+            return self.expand(temp)
+        elif temp.is_terminal():
+            print("Terminal node reached")
+            return None
+        return temp     
 
-        while selectStack:
-            temp = selectStack.pop()
+    def multi_select(self, root:ChemNode):
+        selected:List[ChemNode] = []
+        select_stack:Deque[ChemNode] = deque()
+        select_stack.append(root)
+
+        while select_stack:
+            temp = select_stack.pop()
 
             if temp.is_terminal():
                 selected.append(temp)
@@ -43,12 +51,31 @@ class MCTS:
             elif not temp.is_fully_expanded():
                 for child in self.expand(temp):
                     selected.append(child)
-            react = temp.get_MCTS_best_reaction() # Never None as termial nodes are checked
-            for reagent in react.reagents:
-                selectStack.append(reagent)
+            react = temp.get_MCTS_best_reaction()
 
-        print(len(selected))
-        return selected
+    # def multi_select(self, node:ChemNode):
+    #     """
+    #     Select all required nodes for a reaction
+    #     """
+    #     selected = []
+    #     selectStack:Deque[ChemNode] = deque()
+    #     selectStack.append(node)
+
+    #     while selectStack:
+    #         temp = selectStack.pop()
+
+    #         if temp.is_terminal():
+    #             selected.append(temp)
+    #             continue
+    #         elif not temp.is_fully_expanded():
+    #             for child in self.expand(temp):
+    #                 selected.append(child)
+    #         react = temp.get_MCTS_best_reaction() # Never None as termial nodes are checked
+    #         for reagent in react.precursors:
+    #             selectStack.append(reagent)
+
+    #     print(len(selected))
+    #     return selected
     
     def expand(self, node:ChemNode) -> List[ChemNode]:
         """
@@ -61,13 +88,13 @@ class MCTS:
         for reagent in reaction.reagents:
             react.add_reagent(ChemNode(reagent, node.depth + 1, react))
         node.reactions.append(react)
-        return react.reagents
+        return react.precursors
     
     def simulate(self, node:ChemNode):
         """
         Simulation/rollout of the node
         """
-        smile = node.smile
+        smile = node.smiles
         depth = node.depth
         while True:
             if depth >= self.max_depth:
@@ -82,7 +109,7 @@ class MCTS:
     
 
     def simulate_handler(self, node:ChemNode):
-        smile = node.smile
+        smile = node.smiles
         depth = node.depth
         num_processes = 0
         self.simulate_stack.append(smile)

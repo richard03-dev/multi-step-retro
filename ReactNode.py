@@ -22,11 +22,19 @@ class ReactNode:
         self.smarts = smarts
         self.react_type = react_type 
         self.parent_chemical = parent_chemical
-        self.reagents:List['ChemNode'] = []  # Will hold ChemicalNodes representing precursors
+        self.precursors:List['ChemNode'] = []  # Will hold ChemicalNodes representing precursors
         self.weight = weight
 
+    def copy(self) -> 'ReactNode':
+        """
+        Copy a ReactNode
+        """
+        react = ReactNode(self.reaction_name, self.smarts, self.react_type, self.parent_chemical, self.weight)
+        react.precursors = []
+        return react
+
     def add_reagent(self, chemical_node:'ChemNode'):
-        self.reagents.append(chemical_node)
+        self.precursors.append(chemical_node)
     
     def get_mcts_value(self) -> float:
         """
@@ -34,7 +42,7 @@ class ReactNode:
         """
         visits = 0
         score = 0
-        for reagent in self.reagents:
+        for reagent in self.precursors:
             visits += reagent.visits
             score += reagent.score
         if visits == 0:
@@ -46,14 +54,16 @@ class ReactNode:
         """
         Reaction score based on reagent successes
         """
-        visits = 0
-        score = 0
-        for reagent in self.reagents:
-            visits += reagent.visits
-            score += reagent.score
-        if visits == 0:
-            return float('inf')
-        return score / visits
+        # visits = 0
+        # score = 0
+        # for reagent in self.precursors:
+        #     visits += reagent.visits
+        #     score += reagent.score
+        # if visits == 0:
+        #     return float('inf')
+        # return score / visits
+
+        return sum([precursor.get_score() for precursor in self.precursors]) / len(self.precursors)
 
 # For type hinting
 from ChemNode import ChemNode
