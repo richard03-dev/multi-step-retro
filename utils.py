@@ -290,11 +290,16 @@ class Retrosim:
 
 @dataclass
 class Reaction:
-    def __init__(self, name, smarts, react_type, reagents:List[str]):
+    def __init__(self, name, smarts, react_type, precursors:List[str]):
         self.name = name
         self.smarts = smarts
         self.react_type = react_type
-        self.reagents = reagents
+        self.precursors = precursors
+
+    def __eq__(self, other): 
+        if not isinstance(other, Reaction):
+            return False
+        return self.name == other.name and self.smarts == other.smarts and self.react_type == other.react_type and self.precursors == other.precursors
 
 # Helper function for simulation of SMILE
 def check_buyable(smile:str, cursor:sqlite3.Cursor) -> bool:
@@ -318,10 +323,14 @@ def complete_random(choices:List):
     """
     Choose a random element from a list
     """
+    if not choices:
+        return None
     return random.choice(choices)
 
 def weighted_random(choices:List, weights:List):
     """
     Choose a random element from a list with weights
     """
+    if not choices:
+        return None
     return random.choices(choices, weights=weights)[0]

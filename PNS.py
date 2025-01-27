@@ -24,7 +24,7 @@ class PNS:
         # Expand all children        
         for reaction in node.possible_reactions:
             react = ReactNode(reaction.name, reaction.smarts, reaction.react_type, node, 0.95)
-            for reagent in reaction.reagents:
+            for reagent in reaction.precursors:
                 
                 # if self.chem_table.get(reagent) is not None:
                 #     chem = self.chem_table[reagent]

@@ -9,24 +9,33 @@ from MCTS import MCTS
 from PNS import PNS
 
 def main():
-    conn = sqlite3.connect('data/building_blocks.db')
+    conn = sqlite3.connect('data/building_blocks_small.db')
     buyable = conn.cursor()
 
     retrobiocat = pd.read_pickle("data/retrobiocat_database.pkl")
 
-    smile = "C[C@@H](N)[C@H](O)c1ccccc1"
+    smile = "C#C[C@]1(CO)O[C@@H](n2cnc3c(N)nc(F)nc32)C[C@@H]1O"
 
     analyzer = Retrosim()
 
     root = ChemNode(smile, 0, None, True, buyable, retrobiocat, analyzer, None)
 
-    pns = PNS(root, 3)
-    start = time.time()
-    pns.proof_number_search(root)
-    end = time.time()
-    print(pns.count)
-    print(f'Root score: {root.solution}')
-    print(f'Time taken: {end-start}')
+    mcts = MCTS(root, 1000)
+    test = mcts.multi_select(root)
+    for node in test:
+        print(node.smiles)
+    
+    expanded = mcts.expand(test[0])
+    for node in expanded:
+        print(f'Chem: {node.smiles}, reaction: {node.parent_reaction.reaction_name}')
+
+    # pns = PNS(root, 3)
+    # start = time.time()
+    # pns.proof_number_search(root)
+    # end = time.time()
+    # print(pns.count)
+    # print(f'Root score: {root.solution}')
+    # print(f'Time taken: {end-start}')
     
 
 

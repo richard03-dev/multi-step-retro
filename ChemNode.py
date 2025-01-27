@@ -17,7 +17,7 @@ class ChemNode:
     retrobiocat:pd.DataFrame = None # Retrobiocat templates
     analyzer:Retrosim = None # RdEnzyme analyzer
 
-    def __init__(self, smiles:str, depth:int, parent_reaction:ReactNode, generate_reactions:bool = True, buyable:sqlite3.Cursor = None, 
+    def __init__(self, smiles:str, depth:int, parent_reaction:ReactNode, generate_reactions:bool = True, buyables:sqlite3.Cursor = None, 
                  templates:pd.DataFrame = None, retrosim:Retrosim = None, abundant:sqlite3.Cursor = None):
         # Chemical data
         self.smiles = smiles
@@ -32,16 +32,17 @@ class ChemNode:
         self.score:float = 0.0
 
         # Needed for buyable lookup and reaction generation
-        if buyable is not None:
-            ChemNode.buyables = buyable
+        if buyables is not None:
+            ChemNode.buyables = buyables
         if abundant is not None:
             ChemNode.abundants = abundant
         if templates is not None:
             ChemNode.retrobiocat = templates
         if retrosim is not None:
             ChemNode.analyzer = retrosim
-        
-        self.solution:bool = check_buyable(smiles, ChemNode.buyables)
+
+        self.buyable:bool = check_buyable(smiles, ChemNode.buyables)
+        self.solution:bool = self.buyable
 
         if (not self.solution) and generate_reactions: # If buyable, no need to generate reactions
             self.generate_reactions_retrobiocat()
@@ -62,10 +63,6 @@ class ChemNode:
         """
         Populate the possible reactions for this node using RetroBioCat dataset
         """
-        if self.possible_reactions:
-            print("Reactions already generated")
-            return
-
         prod = rdchiralReactants(self.smiles)
         for idx, name, rxn_smarts, rxn_type in self.retrobiocat.itertuples():
             rxn = rdchiralReaction(rxn_smarts)
@@ -85,13 +82,13 @@ class ChemNode:
         """
         Check if this node is buyable
         """
-        return self.solution     
+        return self.buyable     
 
     def is_terminal(self):
         """
         Check if this node is a terminal node (solution or unmakeable)
         """
-        return self.solution or (not self.possible_reactions and not self.reactions)
+        return self.buyable or (not self.possible_reactions and not self.reactions)
 
 
     def is_fully_expanded(self):
@@ -114,6 +111,7 @@ class ChemNode:
         """
         if self.is_terminal():
             return None
+        random.shuffle(self.reactions)
         return max(self.reactions, key = lambda x : x.get_mcts_value())
     
 
@@ -123,6 +121,7 @@ class ChemNode:
         """
         if self.is_terminal():
             return None
+        random.shuffle(self.reactions) # Shuffle to avoid max first pick bias
         return max(self.reactions, key = lambda x : x.get_reaction_score())
     
 

@@ -1,6 +1,6 @@
 from ReactNode import ReactNode
 from ChemNode import ChemNode
-import utils
+from utils import *
 from typing import List, Deque
 from collections import deque
 from multiprocessing import Process, Queue, Pool
@@ -24,7 +24,10 @@ class MCTS:
         self.max_depth = max_depth
         self.exploration_param = exploration_param
         self.buyables:sqlite3.Cursor = ChemNode.buyables
-        self.template_set:pd.DataFrame = ChemNode.template_set
+        self.abundants:sqlite3.Cursor = ChemNode.abundants
+        self.template_set:pd.DataFrame = ChemNode.retrobiocat
+        self.analyzer:Retrosim = ChemNode.analyzer
+
 
     def select(self, root:ChemNode) -> 'ReactNode':
         temp = root
@@ -46,12 +49,21 @@ class MCTS:
             temp = select_stack.pop()
 
             if temp.is_terminal():
-                selected.append(temp)
+                if temp.is_buyable():
+                    if temp.visits == 0:
+                        selected.append(temp)
+                else:
+                    selected.append(temp)
                 continue
             elif not temp.is_fully_expanded():
-                for child in self.expand(temp):
+                expanded = self.expand(temp)
+                for child in expanded:
                     selected.append(child)
+                continue
             react = temp.get_MCTS_best_reaction()
+            for precursor in react.precursors:
+                select_stack.append(precursor)
+        return selected
 
     # def multi_select(self, node:ChemNode):
     #     """
@@ -85,11 +97,12 @@ class MCTS:
         if reaction is None:
             return []
         react = ReactNode(reaction.name, reaction.smarts, reaction.react_type, node, 0.95)
-        for reagent in reaction.reagents:
+        for reagent in reaction.precursors:
             react.add_reagent(ChemNode(reagent, node.depth + 1, react))
         node.reactions.append(react)
         return react.precursors
     
+
     def simulate(self, node:ChemNode):
         """
         Simulation/rollout of the node
@@ -99,9 +112,9 @@ class MCTS:
         while True:
             if depth >= self.max_depth:
                 return PAYOUT_DEPTH_LIMIT # Too far
-            if utils.check_buyable(smile, self.cursor):
-                return PAYOUT_BUYABLE # buyable
-            reactants = self.generate_random_reaction(smile)
+            if check_buyable(smile, self.buyables):
+                return PAYOUT_BUYABLE # buyable/abundant
+            reactants = self.get_random_reaction_retrobiocat(smile)
             if reactants == None:
                 return PAYOUT_DEAD_END # Unmakeable (dead end)
             smile = reactants[0]
@@ -129,7 +142,7 @@ class MCTS:
         while True:
             if depth >= self.max_depth:
                 return PAYOUT_DEPTH_LIMIT # Too far
-            if utils.check_buyable(smile, self.cursor):
+            if check_buyable(smile, self.cursor):
                 return PAYOUT_BUYABLE # buyable
             reactants = self.generate_random_reaction(smile)
             if reactants == None:
@@ -144,27 +157,28 @@ class MCTS:
         node.visits += 1
         node.score += reward
         if node.parent_reaction and node.parent_reaction.parent_chemical:
+            if all([precursor.solution for precursor in node.parent_reaction.precursors]):
+                node.parent_reaction.parent_chemical.solution = True
             self.backpropagate(node.parent_reaction.parent_chemical, reward * node.parent_reaction.weight)
-
-
+        
     def MCTS(self):
         """
         MCTS algorithm
         """
         for _ in range(self.iterations):
-            selected = self.select(self.root)
+            selected = self.multi_select(self.root)
             if not selected:
+                # Need to fix issue with only selection algorithm 
+                print("Nothing selected")
                 continue
             for node in selected:
                 reward = self.simulate(node)
                 self.backpropagate(node, reward)
-        
-        return self.root.get_best_reaction()
     
 
-    def generate_random_reaction(self, smile:str) -> List:
+    def get_random_reaction_retrobiocat(self, smile:str) -> List:
         """
-        Get a random reaction
+        Get a random reaction from the retrobiocat database
         """
         prod = rdchiralReactants(smile)
         children = []
@@ -173,11 +187,40 @@ class MCTS:
             outcomes = rdchiralRun(rxn, prod, combine_enantiomers=False)
             for reagents in outcomes:
                 children.append(reagents.split('.'))
-        
-        # If unmakeable return empty list
-        if len(children) == 0:
-            return None
 
+        return complete_random(children)
+    
+    def get_random_reaction_rdenzyme(self, smile:str) -> List:
+        """
+        Get a random reaction from the rdenzyme database
+        """
+        children = []
+        results = ChemNode.analyzer.single_step_retro(smile, max_precursors=50, debug=False)
+        for reaction in results:
+            for reagent in reaction[1]:
+                children.append(reagent)
+            
         # Choose a completly random reaction
-        return utils.complete_random(children)
+        return complete_random(children)
+        
+    
+
+    # def generate_random_reaction(self, smile:str) -> List:
+    #     """
+    #     Get a random reaction
+    #     """
+    #     prod = rdchiralReactants(smile)
+    #     children = []
+    #     for idx, name, rxn_smarts, rxn_type in self.template_set.itertuples():
+    #         rxn = rdchiralReaction(rxn_smarts)
+    #         outcomes = rdchiralRun(rxn, prod, combine_enantiomers=False)
+    #         for reagents in outcomes:
+    #             children.append(reagents.split('.'))
+        
+    #     # If unmakeable return empty list
+    #     if len(children) == 0:
+    #         return None
+
+    #     # Choose a completly random reaction
+    #     return complete_random(children)
     
