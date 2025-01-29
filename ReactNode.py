@@ -42,13 +42,17 @@ class ReactNode:
         """
         visits = 0
         score = 0
+        # for reagent in self.precursors:
+        #     visits += reagent.visits
+        #     score += reagent.score
+
         for reagent in self.precursors:
+            score += reagent.get_score()
             visits += reagent.visits
-            score += reagent.score
         if visits == 0:
             return float('inf')
         uct = EXPLORATION_PARAM * math.sqrt(math.log(self.parent_chemical.visits) / visits)
-        return score / visits + uct
+        return score + uct
     
     def get_reaction_score(self):
         """

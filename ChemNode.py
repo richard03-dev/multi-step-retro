@@ -47,6 +47,7 @@ class ChemNode:
         if (not self.solution) and generate_reactions: # If buyable, no need to generate reactions
             self.generate_reactions_retrobiocat()
 
+
     def copy(self) -> 'ChemNode':
         """
         Copy this node
@@ -73,6 +74,9 @@ class ChemNode:
 
 
     def generate_reactions_rdenzyme(self):
+        """
+        Populate the possible reactions for this node using RdEnzyme
+        """
         results = ChemNode.analyzer.single_step_retro(self.smiles, max_precursors=50, debug=False)
         for reaction in results:
             # Add abundance check here
@@ -105,7 +109,7 @@ class ChemNode:
             return 0
         return self.score / self.visits
 
-    def get_MCTS_best_reaction(self) -> 'ReactNode':
+    def get_MCTS_reaction(self) -> 'ReactNode':
         """
         Get the best reaction to expand based on MCTS selection function
         """

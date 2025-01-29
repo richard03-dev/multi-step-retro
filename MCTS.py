@@ -32,7 +32,7 @@ class MCTS:
     def select(self, root:ChemNode) -> 'ReactNode':
         temp = root
         while not temp.is_terminal() and temp.is_fully_expanded():
-            temp = temp.get_MCTS_best_reaction()
+            temp = temp.get_MCTS_reaction()
         if not temp.is_fully_expanded():
             return self.expand(temp)
         elif temp.is_terminal():
@@ -57,37 +57,18 @@ class MCTS:
                 continue
             elif not temp.is_fully_expanded():
                 expanded = self.expand(temp)
+                if not expanded:
+                    print("Nothing expanded")
                 for child in expanded:
                     selected.append(child)
                 continue
-            react = temp.get_MCTS_best_reaction()
+            react = temp.get_MCTS_reaction()
             for precursor in react.precursors:
                 select_stack.append(precursor)
+        if not selected:
+            print("Nothing selected")
+
         return selected
-
-    # def multi_select(self, node:ChemNode):
-    #     """
-    #     Select all required nodes for a reaction
-    #     """
-    #     selected = []
-    #     selectStack:Deque[ChemNode] = deque()
-    #     selectStack.append(node)
-
-    #     while selectStack:
-    #         temp = selectStack.pop()
-
-    #         if temp.is_terminal():
-    #             selected.append(temp)
-    #             continue
-    #         elif not temp.is_fully_expanded():
-    #             for child in self.expand(temp):
-    #                 selected.append(child)
-    #         react = temp.get_MCTS_best_reaction() # Never None as termial nodes are checked
-    #         for reagent in react.precursors:
-    #             selectStack.append(reagent)
-
-    #     print(len(selected))
-    #     return selected
     
     def expand(self, node:ChemNode) -> List[ChemNode]:
         """
@@ -168,8 +149,6 @@ class MCTS:
         for _ in range(self.iterations):
             selected = self.multi_select(self.root)
             if not selected:
-                # Need to fix issue with only selection algorithm 
-                print("Nothing selected")
                 continue
             for node in selected:
                 reward = self.simulate(node)
