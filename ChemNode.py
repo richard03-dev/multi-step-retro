@@ -4,7 +4,7 @@ from ReactNode import ReactNode
 from utils import *
 from typing import List
 from rdchiral.initialization import rdchiralReaction, rdchiralReactants
-from rdchiral.main import rdchiralRun
+from rdenzyme import rdchiralRun
 
 
 EXPLORATION_PARAM = 1.414
@@ -17,10 +17,10 @@ class ChemNode:
     retrobiocat:pd.DataFrame = None # Retrobiocat templates
     analyzer:Retrosim = None # RdEnzyme analyzer
 
-    def __init__(self, smiles:str, depth:int, parent_reaction:ReactNode, generate_reactions:bool = True, buyables:sqlite3.Cursor = None, 
+    def __init__(self, smiles:str, depth:int, parent_reaction:ReactNode, buyables:sqlite3.Cursor = None, 
                  templates:pd.DataFrame = None, retrosim:Retrosim = None, abundant:sqlite3.Cursor = None):
         # Chemical data
-        self.smiles = smiles
+        self.smiles = canonicalize_smiles(smiles)
 
         self.parent_reaction = parent_reaction
         self.depth = depth
@@ -44,7 +44,7 @@ class ChemNode:
         self.buyable:bool = check_buyable(smiles, ChemNode.buyables)
         self.solution:bool = self.buyable
 
-        if (not self.solution) and generate_reactions: # If buyable, no need to generate reactions
+        if (not self.solution): # If buyable, no need to generate reactions
             self.generate_reactions_retrobiocat()
 
 
@@ -64,6 +64,8 @@ class ChemNode:
         """
         Populate the possible reactions for this node using RetroBioCat dataset
         """
+        # if self.smiles == 'C#C[C@@](O)(COP(=O)([O-])O)[C@@H](O)CC=O':
+        #     self.possible_reactions.append(Reaction("Phosphorylation", "", "", ["C#C[C@](O)(C=O)CO"]))
         prod = rdchiralReactants(self.smiles)
         for idx, name, rxn_smarts, rxn_type in self.retrobiocat.itertuples():
             rxn = rdchiralReaction(rxn_smarts)

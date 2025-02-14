@@ -4,21 +4,20 @@ from utils import *
 from typing import List, Deque
 from collections import deque
 from multiprocessing import Process, Queue, Pool
-import random
+from tqdm import tqdm
 import sqlite3
 import pandas as pd
 from rdchiral.initialization import rdchiralReaction, rdchiralReactants
-from rdchiral.main import rdchiralRun
+from rdenzyme import rdchiralRun
 
 PAYOUT_DEPTH_LIMIT = 0
-PAYOUT_DEAD_END = -1
+PAYOUT_DEAD_END = -0.1
 PAYOUT_BUYABLE = 1
 
 # Monte Carlo Tree Search
 class MCTS:
-    def __init__(self, root:ChemNode, iterations:int, max_depth:int = 8, exploration_param:float = 1.414, max_processes:int = 12):
+    def __init__(self, root:ChemNode, max_depth:int = 8, exploration_param:float = 1.414, max_processes:int = 12):
         self.root = root
-        self.iterations = iterations
         self.simulate_stack:Deque[str] = deque()
         self.max_processes = max_processes
         self.max_depth = max_depth
@@ -29,16 +28,16 @@ class MCTS:
         self.analyzer:Retrosim = ChemNode.analyzer
 
 
-    def select(self, root:ChemNode) -> 'ReactNode':
-        temp = root
-        while not temp.is_terminal() and temp.is_fully_expanded():
-            temp = temp.get_MCTS_reaction()
-        if not temp.is_fully_expanded():
-            return self.expand(temp)
-        elif temp.is_terminal():
-            print("Terminal node reached")
-            return None
-        return temp     
+    # def select(self, root:ChemNode) -> 'ReactNode':
+    #     temp = root
+    #     while not temp.is_terminal() and temp.is_fully_expanded():
+    #         temp = temp.get_MCTS_reaction()
+    #     if not temp.is_fully_expanded():
+    #         return self.expand(temp)
+    #     elif temp.is_terminal():
+    #         print("Terminal node reached")
+    #         return None
+    #     return temp     
 
     def multi_select(self, root:ChemNode):
         selected:List[ChemNode] = []
@@ -142,11 +141,11 @@ class MCTS:
                 node.parent_reaction.parent_chemical.solution = True
             self.backpropagate(node.parent_reaction.parent_chemical, reward * node.parent_reaction.weight)
         
-    def MCTS(self):
+    def MCTS(self, iterations:int = 1000):
         """
         MCTS algorithm
         """
-        for _ in range(self.iterations):
+        for _ in tqdm(range(iterations)):
             selected = self.multi_select(self.root)
             if not selected:
                 continue

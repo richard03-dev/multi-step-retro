@@ -301,6 +301,14 @@ class Reaction:
             return False
         return self.name == other.name and self.smarts == other.smarts and self.react_type == other.react_type and self.precursors == other.precursors
 
+
+def canonicalize_smiles(smi):
+    """
+    Canonicalize mol SMILES
+    """
+    canon_smi = Chem.MolToSmiles(Chem.MolFromSmiles(smi), canonical=True)
+    return canon_smi
+
 # Helper function for simulation of SMILE
 def check_buyable(smile:str, cursor:sqlite3.Cursor) -> bool:
     """

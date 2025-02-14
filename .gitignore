@@ -2,4 +2,3 @@ data/
 __pycache__/
 RetroSim_Olga/
 test/
-*.db
